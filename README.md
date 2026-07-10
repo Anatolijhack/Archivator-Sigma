@@ -5,7 +5,36 @@
 > Проект демонстрирует навыки системного программирования, архитектурного проектирования и работы с большими объёмами данных.
 
 ---
-
+📦 Архиватор (Compression Pipeline)
+Сжатие
+RAW DATA
+   ↓
+[RLE Compression]
+   ↓
+[Huffman Encoding]
+   ↓
+[CRC Calculation]
+   ↓
+[Write to Archive]
+Распаковка
+ARCHIVE DATA
+   ↓
+[Read Chunk]
+   ↓
+[Huffman Decoding]
+   ↓
+[RLE Decompression]
+   ↓
+[CRC Validation]
+   ↓
+[Write File]
+Особенности
+Обработка идёт чанками (chunks)
+Каждый chunk:
+сжимается независимо
+проверяется через CRC
+Поддерживается параллельная обработка чанков
+Pipeline реализован через CompressControl
 ## ✨ Ключевые особенности
 
 * ⚡ **Многопоточность** (ThreadPool, контроль нагрузки)
