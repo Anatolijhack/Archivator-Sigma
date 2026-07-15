@@ -737,9 +737,7 @@ FileEntry FileProcessor::compressFile(
     return e;
 }
 //многопоточная разархивация
-void FileProcessor::extractFile(
-    std::istream& in,
-    const FileEntry& e)
+void FileProcessor::extractFile(std::istream& in,const FileEntry& e,const std::filesystem::path& baseDir)
 {
     namespace fs = std::filesystem;
 
@@ -924,7 +922,6 @@ void FileProcessor::extractFile(
 
 
 }
-
 
 
 //не многопоточная версия
