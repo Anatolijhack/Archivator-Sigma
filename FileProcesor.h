@@ -75,7 +75,9 @@ public:
         std::istream& in,
         PositonControl& pos);
 
-    void extractFile(
-        std::istream& in,
-        const FileEntry& e);
+     void extractFile(
+     std::istream& in,
+     const FileEntry& e,
+     const std::filesystem::path& baseDir
+ );
 };
