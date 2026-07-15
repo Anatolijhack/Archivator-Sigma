@@ -1,4 +1,5 @@
 ﻿
+
 #include "Archivator.h"
 
 
@@ -317,8 +318,9 @@ void ArchivatorControl::Archive(
         << header.fileCount
         << "\n";
 }
-void ArchivatorControl::Extract(const std::string& fileName)
-{
+//Рабочая версия ниже + коментарии // типа
+//void ArchivatorControl::Extract(const std::string& fileName)
+//{
     /*std::ifstream in(fileName, std::ios::binary);
     if (!in) throw std::runtime_error("Failed to open archive");
 
@@ -398,7 +400,27 @@ void ArchivatorControl::Extract(const std::string& fileName)
         if (crc.get() != e.crc)
             throw std::runtime_error("CRC mismatch");
     }*/
+//    std::ifstream in(fileName, std::ios::binary);
+//
+//    FormatReader format;
+//    auto header = format.readHeader(in);
+//    auto files = format.readIndex(in, header);
+//
+//    FileProcessor processor;
+//
+//    for (auto& e : files)
+//    {
+//        processor.extractFile(in, e,"CopyExtract");
+//    }
+//
+//}
+void ArchivatorControl::Extract(const std::string& fileName)
+{
+    namespace fs = std::filesystem;
+
     std::ifstream in(fileName, std::ios::binary);
+    if (!in)
+        throw std::runtime_error("Cannot open archive");
 
     FormatReader format;
     auto header = format.readHeader(in);
@@ -406,11 +428,55 @@ void ArchivatorControl::Extract(const std::string& fileName)
 
     FileProcessor processor;
 
-    for (auto& e : files)
+    fs::path dataDir = "Extracted";
+    fs::path tmpDir = "Extracted_tmp";
+    fs::path backupDir = "Extracted_backup";
+
+    // =========================
+    // 🔁 RECOVERY после краша
+    // =========================
+
+    // если data пропала, но backup есть → восстановим
+    if (!fs::exists(dataDir) && fs::exists(backupDir))
     {
-        processor.extractFile(in, e);
+        fs::rename(backupDir, dataDir);
     }
 
+    // если остался tmp → удаляем (незавершённая операция)
+    if (fs::exists(tmpDir))
+    {
+        fs::remove_all(tmpDir);
+    }
+
+    // =========================
+    // 📁 создаём tmp
+    // =========================
+    fs::create_directories(tmpDir);
+
+    // =========================
+    // 📦 распаковка В TMP
+    // =========================
+    for (auto& e : files)
+    {
+        processor.extractFile(in, e, tmpDir);
+    }
+
+    // =========================
+    // 🔄 атомарный swap
+    // =========================
+
+    fs::remove_all(backupDir);
+
+    if (fs::exists(dataDir))
+    {
+        fs::rename(dataDir, backupDir);
+    }
+
+    fs::rename(tmpDir, dataDir);
+
+    fs::remove_all(backupDir);
+
+    std::cout << "[OK] Atomic restore complete\n";
 }
 void ArchivatorControl::AddFolder(
     const fs::path& folder,
@@ -425,3 +491,4 @@ void ArchivatorControl::AddFolder(
         files.push_back(relative.string());
     }
 }
+
