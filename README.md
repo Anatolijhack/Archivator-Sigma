@@ -1,153 +1,163 @@
 # Sigma Archiver
 
-**Sigma Archiver** — высокопроизводительный архиватор на C++, реализующий потоковую обработку, многопоточность и собственный бинарный формат.
+Sigma Archiver is a high-performance C++ library for data compression and archiving, designed around a chunk-based, multithreaded processing model.
 
-> Проект демонстрирует навыки системного программирования, архитектурного проектирования и работы с большими объёмами данных.
+The project focuses on efficient handling of large data streams, extensible pipeline architecture, and robust integrity validation.
 
 ---
-📦 Архиватор (Compression Pipeline)
-Сжатие
-RAW DATA
-   ↓
-[RLE Compression]
-   ↓
-[Huffman Encoding]
-   ↓
-[CRC Calculation]
-   ↓
-[Write to Archive]
-Распаковка
-ARCHIVE DATA
-   ↓
-[Read Chunk]
-   ↓
-[Huffman Decoding]
-   ↓
-[RLE Decompression]
-   ↓
-[CRC Validation]
-   ↓
-[Write File]
-Особенности
-Обработка идёт чанками (chunks)
-Каждый chunk:
-сжимается независимо
-проверяется через CRC
-Поддерживается параллельная обработка чанков
-Pipeline реализован через CompressControl
-##  Ключевые особенности
 
-*  **Многопоточность** (ThreadPool, контроль нагрузки)
-* **Chunk-based обработка** (поддержка больших файлов)
-* **Pipeline-архитектура** (расширяемая система обработки)
-*  **Комбинированное сжатие**
+## Overview
 
-  * RLE
+Sigma implements a custom binary archive format and a modular compression pipeline.
+Data is processed incrementally in independent chunks, allowing parallel execution and controlled memory usage.
+
+### Compression pipeline
+
+```
+RAW → RLE → Huffman → CRC → Archive
+```
+
+### Decompression pipeline
+
+```
+Archive → Chunk → Huffman → RLE → CRC → RAW
+```
+
+---
+
+## Key Features
+
+* **Chunk-based processing**
+
+  * Files are split into independent chunks
+  * Enables parallel compression and decompression
+  * Scales to large files with predictable memory usage
+
+* **Multithreaded execution**
+
+  * Thread pool with bounded in-flight tasks
+  * Deterministic output order preservation
+
+* **Pipeline architecture**
+
+  * Modular processing stages via `CompressControl`
+  * Easily extendable with new algorithms
+
+* **Combined compression**
+
+  * Run-Length Encoding (RLE)
   * Huffman Coding
-*  **Контроль целостности**
 
-  * CRC32 (на уровне чанков и файлов)
-*  **Собственный формат архива**
+* **Data integrity**
 
-  * Header + Data + Index
-*  Сохранение структуры директорий
+  * CRC32 validation at:
+
+    * chunk level
+    * file level
+
+* **Custom archive format**
+
+  * Structured layout: Header → Data → Index
+  * Stores directory hierarchy
+  * Supports fast sequential writes
+
+* **Atomic extraction**
+
+  * Temporary directory + swap mechanism
+  * Crash-safe restore process
 
 ---
 
-##  Архитектура
+## Architecture
 
-Проект построен на потоковой модели обработки данных:
+The system is built around a streaming pipeline abstraction:
 
-```cpp
+```
 IDataSource → CompressControl → ... → Output
 ```
 
-### Основные компоненты
+### Core Components
 
-* `IDataSource` — абстракция источника данных
-* `CompressControl` — этап обработки (pipeline)
-* `StreamPipeline` — выполнение цепочки
-* `FileProcessor` — логика сжатия/распаковки
-* `ThreadPool` — параллельная обработка
-* `FormatWriter` — работа с бинарным форматом
-
----
-
-##  Pipeline сжатия
-
-```text
-RAW → RLE → Huffman → Output
-```
-
-Распаковка:
-
-```text
-Input → Huffman → RLE → RAW
-```
+* `IDataSource` — abstract data source
+* `CompressControl` — pipeline stage interface
+* `StreamPipeline` — pipeline execution engine
+* `FileProcessor` — compression/decompression logic
+* `ThreadPool` — parallel task execution
+* `FormatWriter / FormatReader` — archive format handling
 
 ---
 
-##  Формат архива
+## Archive Format
 
-```text
+```
 [HEADER]
-[FILE DATA (chunks)]
+[FILE DATA (chunked)]
 [INDEX]
 ```
 
-### Chunk структура
+### Chunk Structure
 
-* offset
-* compressed size
-* original size
-* CRC32
+* `offset`
+* `compressed size`
+* `original size`
+* `CRC32`
 
----
-
-##  Параллелизм
-
-* Обработка файлов разбивается на чанки
-* Чанки сжимаются параллельно
-* Сохраняется порядок при записи
-* Ограничение нагрузки (`MAX_IN_FLIGHT`)
+The index contains metadata required for reconstruction of files and directories.
 
 ---
 
-##  Использование
+## Parallel Processing Model
+
+* Input is split into chunks
+* Chunks are processed independently in parallel
+* Results are buffered and written in-order
+* Memory usage is controlled via `MAX_IN_FLIGHT`
+
+---
+
+## Usage (Library)
 
 ```cpp
 ArchivatorControl archiver;
 
-// Архивация
+// Create archive
 archiver.Archive("archive.sigma", "folder/");
 
-// Извлечение
+// Extract archive
 archiver.Extract("archive.sigma");
 ```
 
 ---
 
-## Что демонстрирует проект
+## Design Goals
 
-* Проектирование систем (pipeline, формат данных)
-* Работа с потоками и синхронизацией
-* Оптимизация под большие данные
-* Реализация алгоритмов сжатия
-* Разработка собственного бинарного формата
+* High throughput on large datasets
+* Predictable memory usage
+* Extensible compression pipeline
+* Deterministic output
+* Fault-tolerant extraction
+
+---
+
+## Current Limitations
+
+* No command-line interface (library-only usage)
+* Archive format versioning is not finalized
+* Streaming Huffman decoding is buffered
+* Limited metadata support (permissions, timestamps)
 
 ---
 
 ## Roadmap
 
-* [ ] Поддержка нескольких алгоритмов сжатия
-* [ ] Потоковый Huffman (без буферизации)
-* [ ] CLI интерфейс
-* [ ] Улучшение формата (endianness, versioning)
-* [ ] RAII и безопасное управление памятью
+* Archive format versioning
+* Streaming Huffman implementation
+* Additional compression algorithms
+* Extended metadata support
+* CLI interface
 
 ---
 
-## Автор
+## Author
 
-Разработано как pet-проект с упором на **system design и performance**.
-
+Developed as a systems programming project focused on performance, architecture, and data processing pipelines.
