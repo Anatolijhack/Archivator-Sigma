@@ -1,163 +1,188 @@
-# Sigma Archiver
+# SigmaArchiver
 
-Sigma Archiver is a high-performance C++ library for data compression and archiving, designed around a chunk-based, multithreaded processing model.
+Высокопроизводительный архиватор с поддержкой потоковой обработки, многопоточности и контроля целостности данных.
 
-The project focuses on efficient handling of large data streams, extensible pipeline architecture, and robust integrity validation.
+##  Описание
 
----
+**SigmaArchiver** — это модульная система архивирования, реализующая пайплайн обработки данных с возможностью комбинирования алгоритмов сжатия и верификации.
 
-## Overview
+Проект демонстрирует архитектурный подход к построению систем обработки данных:
 
-Sigma implements a custom binary archive format and a modular compression pipeline.
-Data is processed incrementally in independent chunks, allowing parallel execution and controlled memory usage.
-
-### Compression pipeline
-
-```
-RAW → RLE → Huffman → CRC → Archive
-```
-
-### Decompression pipeline
-
-```
-Archive → Chunk → Huffman → RLE → CRC → RAW
-```
+* потоковые преобразования (stream processing)
+* конвейерная обработка (pipeline)
+* параллельная компрессия
+* контроль целостности (CRC)
 
 ---
 
-## Key Features
+##  Возможности
 
-* **Chunk-based processing**
+* 📦 Архивация директорий с сохранением структуры
+* ⚡ Параллельная обработка данных (chunk-based multithreading)
+* 🔗 Конвейерная архитектура (pipeline)
+* 🧠 Комбинированное сжатие:
 
-  * Files are split into independent chunks
-  * Enables parallel compression and decompression
-  * Scales to large files with predictable memory usage
-
-* **Multithreaded execution**
-
-  * Thread pool with bounded in-flight tasks
-  * Deterministic output order preservation
-
-* **Pipeline architecture**
-
-  * Modular processing stages via `CompressControl`
-  * Easily extendable with new algorithms
-
-* **Combined compression**
-
-  * Run-Length Encoding (RLE)
+  * RLE (Run-Length Encoding)
   * Huffman Coding
+* 🛡 Контроль целостности:
 
-* **Data integrity**
-
-  * CRC32 validation at:
-
-    * chunk level
-    * file level
-
-* **Custom archive format**
-
-  * Structured layout: Header → Data → Index
-  * Stores directory hierarchy
-  * Supports fast sequential writes
-
-* **Atomic extraction**
-
-  * Temporary directory + swap mechanism
-  * Crash-safe restore process
+  * CRC32 на уровне чанков
+  * CRC32 на уровне файла
+* 💾 Потоковая обработка без необходимости загружать весь файл в память
+* 🔄 Crash-safe извлечение (временные директории + атомарная замена)
 
 ---
 
-## Architecture
+## 🧱 Архитектура
 
-The system is built around a streaming pipeline abstraction:
-
-```
-IDataSource → CompressControl → ... → Output
-```
-
-### Core Components
-
-* `IDataSource` — abstract data source
-* `CompressControl` — pipeline stage interface
-* `StreamPipeline` — pipeline execution engine
-* `FileProcessor` — compression/decompression logic
-* `ThreadPool` — parallel task execution
-* `FormatWriter / FormatReader` — archive format handling
-
----
-
-## Archive Format
+Система построена как конвейер обработки данных:
 
 ```
-[HEADER]
-[FILE DATA (chunked)]
-[INDEX]
+Input → RLE → Huffman → CRC → Writer
 ```
 
-### Chunk Structure
+При распаковке:
 
-* `offset`
-* `compressed size`
-* `original size`
-* `CRC32`
+```
+Reader → Huffman → RLE → CRC → Output
+```
 
-The index contains metadata required for reconstruction of files and directories.
-
----
-
-## Parallel Processing Model
-
-* Input is split into chunks
-* Chunks are processed independently in parallel
-* Results are buffered and written in-order
-* Memory usage is controlled via `MAX_IN_FLIGHT`
-
----
-
-## Usage (Library)
+Каждый этап реализует единый интерфейс:
 
 ```cpp
-ArchivatorControl archiver;
+write(const char* data, size_t size)
+flush()
+```
 
-// Create archive
-archiver.Archive("archive.sigma", "folder/");
+Это позволяет легко:
 
-// Extract archive
-archiver.Extract("archive.sigma");
+* заменять алгоритмы
+* добавлять новые стадии
+* переиспользовать компоненты
+
+---
+
+## ⚙️ Основные компоненты
+
+### 🔹 Buffer Layer
+
+* `BufferReader` / `BufferWriter`
+* Абстракция над памятью
+* Используется для изоляции кодеков от источников данных
+
+---
+
+### 🔹 Bit Layer
+
+* `BitReader` / `BitWriter`
+* Побитовая запись и чтение
+* Используется в Huffman кодировании
+
+---
+
+### 🔹 Compression
+
+#### RLE
+
+* Потоковая реализация
+* Работает через state-machine
+* Эффективен на повторяющихся данных
+
+#### Huffman
+
+* Динамическое построение дерева частот
+* Сериализация дерева в поток
+* Побитовое кодирование
+
+---
+
+### 🔹 Integrity
+
+* CRC32 для каждого чанка
+* Финальный CRC файла
+* Проверка при распаковке
+
+---
+
+### 🔹 Pipeline Controls
+
+* `PositionControl` — отслеживание позиции в потоке
+* `ScopeControl` — измерение размеров блоков
+* Позволяет формировать корректные заголовки архива
+
+---
+
+### 🔹 Parallel Engine
+
+* Разбиение файлов на чанки
+* Параллельная компрессия через ThreadPool
+* Упорядоченная запись результатов
+
+---
+
+## Формат архива
+
+Архив содержит:
+
+* Заголовок
+* Список файлов
+* Для каждого файла:
+
+  * метаданные
+  * список чанков
+
+    * смещение
+    * размер
+    * CRC
+
+---
+
+## 🔐 Надёжность
+
+* Проверка CRC на каждом этапе
+* Обнаружение повреждений данных
+* Безопасное извлечение:
+
+  * сначала во временную директорию
+  * затем атомарная замена
+
+---
+
+## 🧪 Пример использования
+
+```cpp
+ArchivatorControl arch;
+
+arch.Archive("archive.sigma", "TestFolder");
+arch.Extract("archive.sigma");
 ```
 
 ---
 
-## Design Goals
+##  Ключевые особенности реализации
 
-* High throughput on large datasets
-* Predictable memory usage
-* Extensible compression pipeline
-* Deterministic output
-* Fault-tolerant extraction
-
----
-
-## Current Limitations
-
-* No command-line interface (library-only usage)
-* Archive format versioning is not finalized
-* Streaming Huffman decoding is buffered
-* Limited metadata support (permissions, timestamps)
+* Отсутствие глобального состояния
+* Минимальные зависимости (стандартная библиотека)
+* Чёткое разделение ответственности компонентов
+* Расширяемая архитектура
 
 ---
 
-## Roadmap
+##  Возможные улучшения
 
-* Archive format versioning
-* Streaming Huffman implementation
-* Additional compression algorithms
-* Extended metadata support
-* CLI interface
+* Табличная оптимизация CRC32
+* Поддержка дополнительных алгоритмов (LZ, Zstd-подобные)
+* Параллельная запись на диск
+* Сжатие без промежуточных буферов (true streaming)
+* Версионирование формата архива
 
 ---
 
-## Author
+##  Лицензия
 
-Developed as a systems programming project focused on performance, architecture, and data processing pipelines.
+Проект предоставляется "как есть" для образовательных и исследовательских целей.
+
+---
+
+##  Автор
+
